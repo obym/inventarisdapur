@@ -42,6 +42,8 @@ export const KitchenManageModal: React.FC<KitchenManageModalProps> = ({
   const [capacityPortions, setCapacityPortions] = useState(2500);
   const [description, setDescription] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [kitchenWarning, setKitchenWarning] = useState<string | null>(null);
+  const [confirmDeleteKitchen, setConfirmDeleteKitchen] = useState<Kitchen | null>(null);
 
   if (!isOpen) return null;
 
@@ -114,20 +116,27 @@ export const KitchenManageModal: React.FC<KitchenManageModalProps> = ({
   };
 
   const handleDelete = (kitchen: Kitchen) => {
+    setKitchenWarning(null);
     const attachedCount = items.filter((it) => it.kitchenId === kitchen.id).length;
     if (attachedCount > 0) {
-      alert(
+      setKitchenWarning(
         `Tidak dapat menghapus ${kitchen.name} karena masih memiliki ${attachedCount} barang inventaris terkait. Silakan pindahkan/mutasikan barang terlebih dahulu.`
       );
+      setConfirmDeleteKitchen(null);
       return;
     }
     if (kitchens.length <= 1) {
-      alert('Minimal harus ada 1 dapur operasional terdaftar.');
+      setKitchenWarning('Minimal harus ada 1 dapur operasional terdaftar.');
+      setConfirmDeleteKitchen(null);
       return;
     }
-    if (confirm(`Apakah Anda yakin ingin menghapus ${kitchen.name}?`)) {
-      onDeleteKitchen(kitchen.id);
-    }
+    setConfirmDeleteKitchen(kitchen);
+  };
+
+  const handleConfirmDeleteKitchen = (kitchenId: string) => {
+    onDeleteKitchen(kitchenId);
+    setConfirmDeleteKitchen(null);
+    setKitchenWarning(null);
   };
 
   return (
@@ -171,6 +180,48 @@ export const KitchenManageModal: React.FC<KitchenManageModalProps> = ({
               <span>Tambah Dapur Baru</span>
             </button>
           </div>
+
+          {/* Kitchen Deletion Warning Banner */}
+          {kitchenWarning && (
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-center justify-between">
+              <span>{kitchenWarning}</span>
+              <button
+                onClick={() => setKitchenWarning(null)}
+                className="text-amber-900 font-bold ml-2 hover:underline cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Confirm Delete Kitchen Dialog */}
+          {confirmDeleteKitchen && (
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-2.5 animate-in fade-in duration-150">
+              <div className="font-bold text-rose-800 flex items-center gap-1.5 text-sm">
+                <Trash2 className="w-4 h-4 text-rose-600" />
+                <span>Konfirmasi Hapus Dapur: {confirmDeleteKitchen.name}?</span>
+              </div>
+              <p className="text-slate-600 text-xs">
+                Apakah Anda yakin ingin menghapus <strong>{confirmDeleteKitchen.name}</strong> ({confirmDeleteKitchen.code}) dari daftar cabang dapur?
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteKitchen(null)}
+                  className="px-3 py-1.5 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-lg font-medium cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConfirmDeleteKitchen(confirmDeleteKitchen.id)}
+                  className="px-3 py-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-lg font-bold shadow-xs cursor-pointer"
+                >
+                  Ya, Hapus Dapur
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Form inside modal when adding/editing */}
           {isFormOpen && (

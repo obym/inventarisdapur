@@ -227,9 +227,11 @@ export const ItemCardView: React.FC<ItemCardViewProps> = ({
                 </button>
 
                 <button
+                  id={`btn-delete-card-${item.id}`}
                   onClick={() => onDeleteItem(item.id)}
-                  title="Hapus"
-                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition cursor-pointer"
+                  title="Hapus Barang dari Inventaris"
+                  aria-label={`Hapus ${item.name}`}
+                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded-md transition cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

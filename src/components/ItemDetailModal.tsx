@@ -13,6 +13,7 @@ import {
   FileText,
   Clock,
   Image as ImageIcon,
+  Trash2,
 } from 'lucide-react';
 import { InventoryItem, Kitchen } from '../types';
 import {
@@ -29,6 +30,7 @@ interface ItemDetailModalProps {
   onUpdateCondition: (item: InventoryItem) => void;
   onTransfer: (item: InventoryItem) => void;
   onPrintTag: (item: InventoryItem) => void;
+  onDelete?: (item: InventoryItem) => void;
 }
 
 export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
@@ -39,6 +41,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   onUpdateCondition,
   onTransfer,
   onPrintTag,
+  onDelete,
 }) => {
   if (!item) return null;
 
@@ -289,6 +292,20 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               <Edit2 className="w-3.5 h-3.5" />
               <span>Edit</span>
             </button>
+
+            {onDelete && (
+              <button
+                id="btn-delete-from-detail"
+                onClick={() => {
+                  onClose();
+                  onDelete(item);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 hover:text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Hapus Aset</span>
+              </button>
+            )}
 
             <button
               onClick={onClose}

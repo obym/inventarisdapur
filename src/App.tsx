@@ -11,6 +11,7 @@ import { KitchenManageModal } from './components/KitchenManageModal';
 import { ConditionUpdateModal } from './components/ConditionUpdateModal';
 import { TransferItemModal } from './components/TransferItemModal';
 import { PrintAssetTagModal } from './components/PrintAssetTagModal';
+import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { INITIAL_KITCHENS, INITIAL_ITEMS } from './data/initialData';
 import {
   seedInitialFirestoreData,
@@ -146,6 +147,8 @@ export default function App() {
   const [conditionItem, setConditionItem] = useState<InventoryItem | null>(null);
   const [transferItem, setTransferItem] = useState<InventoryItem | null>(null);
   const [printTagItem, setPrintTagItem] = useState<InventoryItem | null>(null);
+  const [deleteTargetItem, setDeleteTargetItem] = useState<InventoryItem | null>(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
 
   // Sync with LocalStorage
   useEffect(() => {
@@ -295,20 +298,35 @@ export default function App() {
     }
   };
 
-  // Handler: Delete Item
-  const handleDeleteItem = async (itemId: string) => {
+  // Handlers for Delete Item (with confirmation modal)
+  const handleRequestDeleteItem = (itemId: string) => {
     const it = items.find((i) => i.id === itemId);
-    if (!it) return;
-    if (confirm(`Hapus barang "${it.name}" (${it.code}) dari inventaris dapur MBG?`)) {
+    if (it) {
+      setDeleteTargetItem(it);
+    }
+  };
+
+  const handleRequestDeleteItemObj = (item: InventoryItem) => {
+    setDeleteTargetItem(item);
+  };
+
+  const handleExecuteDelete = async (itemId: string) => {
+    setIsDeletingItem(true);
+    try {
       setItems((prev) => prev.filter((i) => i.id !== itemId));
       if (detailItem?.id === itemId) setDetailItem(null);
+      if (editingItem?.id === itemId) {
+        setEditingItem(null);
+        setIsItemFormOpen(false);
+      }
+      setDeleteTargetItem(null);
 
       // Firestore delete
-      try {
-        await deleteItemFromFirestore(itemId);
-      } catch (err) {
-        console.error('Failed to delete item from Firestore:', err);
-      }
+      await deleteItemFromFirestore(itemId);
+    } catch (err) {
+      console.error('Failed to delete item from Firestore:', err);
+    } finally {
+      setIsDeletingItem(false);
     }
   };
 
@@ -603,7 +621,7 @@ export default function App() {
               setEditingItem(it);
               setIsItemFormOpen(true);
             }}
-            onDeleteItem={handleDeleteItem}
+            onDeleteItem={handleRequestDeleteItem}
             onUpdateCondition={(it) => setConditionItem(it)}
             onTransferItem={(it) => setTransferItem(it)}
             onPrintTag={(it) => setPrintTagItem(it)}
@@ -617,7 +635,7 @@ export default function App() {
               setEditingItem(it);
               setIsItemFormOpen(true);
             }}
-            onDeleteItem={handleDeleteItem}
+            onDeleteItem={handleRequestDeleteItem}
             onUpdateCondition={(it) => setConditionItem(it)}
             onTransferItem={(it) => setTransferItem(it)}
             onPrintTag={(it) => setPrintTagItem(it)}
@@ -649,6 +667,7 @@ export default function App() {
         editItem={editingItem}
         kitchens={kitchens}
         defaultKitchenId={selectedKitchenId}
+        onDelete={handleRequestDeleteItem}
       />
 
       {/* Item Detail & Audit Modal */}
@@ -663,6 +682,7 @@ export default function App() {
         onUpdateCondition={(it) => setConditionItem(it)}
         onTransfer={(it) => setTransferItem(it)}
         onPrintTag={(it) => setPrintTagItem(it)}
+        onDelete={handleRequestDeleteItemObj}
       />
 
       {/* Kitchen Management & Add New Kitchens Modal */}
@@ -696,6 +716,16 @@ export default function App() {
         item={printTagItem}
         kitchens={kitchens}
         onClose={() => setPrintTagItem(null)}
+      />
+
+      {/* Safe Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTargetItem}
+        item={deleteTargetItem}
+        kitchens={kitchens}
+        onClose={() => setDeleteTargetItem(null)}
+        onConfirm={handleExecuteDelete}
+        isDeleting={isDeletingItem}
       />
     </div>
   );
