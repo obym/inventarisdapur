@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   MapPin,
+  Building,
   Eye,
   Edit2,
   Trash2,
@@ -121,12 +122,10 @@ export const ItemTableView: React.FC<ItemTableViewProps> = ({
 
                   {/* Lokasi Fisik & Dapur (CRITICAL USER REQUIREMENT) */}
                   <td className="py-3 px-4 align-middle">
-                    <div className="flex flex-col gap-1 max-w-[260px]">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] font-bold text-[#011E4D] bg-[#B4E0E8]/30 px-1.5 py-0.5 rounded border border-[#B4E0E8]/60">
-                          {kitchen?.code || 'MBG'}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-700 truncate">
+                    <div className="flex flex-col gap-1.5 max-w-[280px]">
+                      <div className="flex items-center gap-1.5">
+                        <Building className="w-3.5 h-3.5 text-[#011E4D] shrink-0" />
+                        <span className="text-xs font-bold text-slate-800 leading-snug">
                           {kitchen?.name || 'Dapur MBG'}
                         </span>
                       </div>
