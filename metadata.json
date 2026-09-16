@@ -1,0 +1,6 @@
+{
+  "name": "Monitoring Inventaris Dapur MBG",
+  "description": "Aplikasi monitoring dan inventarisasi aset dapur program Makan Bergizi Gratis (MBG) untuk melacak kompor, meja, kursi, AC, lemari, apron, alat masak dengan nilai perolehan, tanggal beli, kondisi, lokasi spesifik, dan multi-dapur.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,45 @@
+{
+  "entities": {
+    "inventory_items": {
+      "title": "Barang Inventaris Dapur MBG",
+      "description": "Daftar aset fisik peralatan dapur MBG beserta spesifikasi, nilai perolehan, lokasi, dan foto",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "kitchenId": { "type": "string" },
+        "locationSpot": { "type": "string" },
+        "condition": { "type": "string" },
+        "acquisitionPrice": { "type": "number" },
+        "purchaseDate": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unit": { "type": "string" },
+        "brandOrSpec": { "type": "string" },
+        "pic": { "type": "string" },
+        "notes": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "lastInspectedDate": { "type": "string" },
+        "mutationHistory": { "type": "array" },
+        "conditionHistory": { "type": "array" }
+      },
+      "required": ["code", "name", "category", "kitchenId", "locationSpot", "condition", "acquisitionPrice", "purchaseDate"]
+    },
+    "kitchens": {
+      "title": "Dapur MBG",
+      "description": "Cabang dapur program Makan Bergizi Gratis",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "address": { "type": "string" },
+        "pic": { "type": "string" },
+        "contact": { "type": "string" },
+        "capacityPortions": { "type": "number" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "code"]
+    }
+  }
+}

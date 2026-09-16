@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monitoring Inventaris Dapur MBG</title>
+    <meta name="description" content="Aplikasi monitoring dan inventarisasi aset dapur program Makan Bergizi Gratis (MBG) untuk melacak kompor, meja, kursi, AC, lemari, apron, alat masak dengan nilai perolehan, tanggal beli, kondisi, lokasi spesifik, dan multi-dapur." />
+    <meta property="og:title" content="Monitoring Inventaris Dapur MBG" />
+    <meta property="og:description" content="Aplikasi monitoring dan inventarisasi aset dapur program Makan Bergizi Gratis (MBG) untuk melacak kompor, meja, kursi, AC, lemari, apron, alat masak dengan nilai perolehan, tanggal beli, kondisi, lokasi spesifik, dan multi-dapur." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      (function() {
+        try {
+          var nativeFetch = typeof window !== 'undefined' && window.fetch ? window.fetch.bind(window) : null;
+          if (nativeFetch) {
+            var activeFetch = nativeFetch;
+            Object.defineProperty(window, 'fetch', {
+              get: function() {
+                return activeFetch;
+              },
+              set: function(fn) {
+                if (typeof fn === 'function') {
+                  activeFetch = fn;
+                }
+              },
+              configurable: true,
+              enumerable: true
+            });
+          }
+        } catch (e) {
+          console.warn('Fetch guard init:', e);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

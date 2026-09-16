@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #011E4D;
+  --color-cyan-hover: #B4E0E8;
+}
+
+/* Custom interactive hover class for quick application */
+.btn-brand-primary {
+  background-color: #011E4D;
+  color: #ffffff;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-brand-primary:hover {
+  background-color: #B4E0E8;
+  color: #011E4D;
+}
+
