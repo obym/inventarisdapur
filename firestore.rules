@@ -10,5 +10,17 @@ service cloud.firestore {
     match /kitchens/{kitchenId} {
       allow read, write: if true;
     }
+
+    // System configuration / metadata
+    match /system_config/{configId} {
+      allow read, write: if true;
+    }
+
+    // System connection test
+    match /test/{docId} {
+      allow read, write: if true;
+    }
   }
 }
+
+

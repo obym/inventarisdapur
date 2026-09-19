@@ -1,45 +1,71 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   deleteDoc,
   onSnapshot,
   writeBatch,
 } from 'firebase/firestore';
-import { db, FIRESTORE_COLLECTIONS } from './firebase';
+import {
+  db,
+  FIRESTORE_COLLECTIONS,
+  handleFirestoreError,
+  OperationType,
+} from './firebase';
 import { InventoryItem, Kitchen } from '../types';
 import { INITIAL_KITCHENS, INITIAL_ITEMS } from '../data/initialData';
 
 const KITCHENS_COLLECTION = FIRESTORE_COLLECTIONS.KITCHENS;
 const ITEMS_COLLECTION = FIRESTORE_COLLECTIONS.ITEMS;
+const SYSTEM_CONFIG_COLLECTION = FIRESTORE_COLLECTIONS.SYSTEM_CONFIG;
 
 /**
- * Initialize / Seed default data in Firestore if the collections are empty.
+ * Initialize / Seed default data in Firestore if not already seeded.
+ * Uses a persistent marker doc to prevent re-seeding when users delete items.
  */
 export async function seedInitialFirestoreData(): Promise<void> {
   try {
-    const kitchensSnap = await getDocs(collection(db, KITCHENS_COLLECTION));
+    const seedDocRef = doc(db, SYSTEM_CONFIG_COLLECTION, 'initial_seed');
+    const seedSnap = await getDoc(seedDocRef);
+
+    // If marker exists, we have already seeded in the past; never overwrite user deletions
+    if (seedSnap.exists()) {
+      return;
+    }
+
+    const [kitchensSnap, itemsSnap] = await Promise.all([
+      getDocs(collection(db, KITCHENS_COLLECTION)),
+      getDocs(collection(db, ITEMS_COLLECTION)),
+    ]);
+
+    const batch = writeBatch(db);
+
     if (kitchensSnap.empty) {
-      const batch = writeBatch(db);
       INITIAL_KITCHENS.forEach((k) => {
         const ref = doc(db, KITCHENS_COLLECTION, k.id);
         batch.set(ref, k);
       });
-      await batch.commit();
     }
 
-    const itemsSnap = await getDocs(collection(db, ITEMS_COLLECTION));
     if (itemsSnap.empty) {
-      const batch = writeBatch(db);
       INITIAL_ITEMS.forEach((it) => {
         const ref = doc(db, ITEMS_COLLECTION, it.id);
         batch.set(ref, it);
       });
-      await batch.commit();
     }
+
+    // Set the seed marker
+    batch.set(seedDocRef, {
+      seeded: true,
+      seededAt: new Date().toISOString(),
+      app: 'Inventaris Dapur MBG',
+    });
+
+    await batch.commit();
   } catch (error) {
-    console.error('Firestore seeding notice:', error);
+    console.error('Firestore seeding check notice:', error);
   }
 }
 
@@ -97,53 +123,81 @@ export function subscribeToItems(
 export async function saveItemToFirestore(
   item: InventoryItem
 ): Promise<void> {
-  const docRef = doc(db, ITEMS_COLLECTION, item.id);
-  await setDoc(docRef, item, { merge: true });
+  try {
+    const docRef = doc(db, ITEMS_COLLECTION, item.id);
+    await setDoc(docRef, item, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${ITEMS_COLLECTION}/${item.id}`);
+  }
 }
 
 /**
  * Delete an inventory item from Firestore
  */
 export async function deleteItemFromFirestore(itemId: string): Promise<void> {
-  const docRef = doc(db, ITEMS_COLLECTION, itemId);
-  await deleteDoc(docRef);
+  try {
+    const docRef = doc(db, ITEMS_COLLECTION, itemId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${ITEMS_COLLECTION}/${itemId}`);
+  }
 }
 
 /**
  * Save / Update a kitchen in Firestore
  */
 export async function saveKitchenToFirestore(kitchen: Kitchen): Promise<void> {
-  const docRef = doc(db, KITCHENS_COLLECTION, kitchen.id);
-  await setDoc(docRef, kitchen, { merge: true });
+  try {
+    const docRef = doc(db, KITCHENS_COLLECTION, kitchen.id);
+    await setDoc(docRef, kitchen, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${KITCHENS_COLLECTION}/${kitchen.id}`);
+  }
 }
 
 /**
  * Delete a kitchen from Firestore
  */
 export async function deleteKitchenFromFirestore(kitchenId: string): Promise<void> {
-  const docRef = doc(db, KITCHENS_COLLECTION, kitchenId);
-  await deleteDoc(docRef);
+  try {
+    const docRef = doc(db, KITCHENS_COLLECTION, kitchenId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${KITCHENS_COLLECTION}/${kitchenId}`);
+  }
 }
 
 /**
  * Reset all data to initial factory demo in Firestore
  */
 export async function resetAllFirestoreData(): Promise<void> {
-  const [kitchensSnap, itemsSnap] = await Promise.all([
-    getDocs(collection(db, KITCHENS_COLLECTION)),
-    getDocs(collection(db, ITEMS_COLLECTION)),
-  ]);
+  try {
+    const [kitchensSnap, itemsSnap] = await Promise.all([
+      getDocs(collection(db, KITCHENS_COLLECTION)),
+      getDocs(collection(db, ITEMS_COLLECTION)),
+    ]);
 
-  const batch = writeBatch(db);
-  kitchensSnap.forEach((d) => batch.delete(d.ref));
-  itemsSnap.forEach((d) => batch.delete(d.ref));
+    const batch = writeBatch(db);
+    kitchensSnap.forEach((d) => batch.delete(d.ref));
+    itemsSnap.forEach((d) => batch.delete(d.ref));
 
-  INITIAL_KITCHENS.forEach((k) => {
-    batch.set(doc(db, KITCHENS_COLLECTION, k.id), k);
-  });
-  INITIAL_ITEMS.forEach((it) => {
-    batch.set(doc(db, ITEMS_COLLECTION, it.id), it);
-  });
+    INITIAL_KITCHENS.forEach((k) => {
+      batch.set(doc(db, KITCHENS_COLLECTION, k.id), k);
+    });
+    INITIAL_ITEMS.forEach((it) => {
+      batch.set(doc(db, ITEMS_COLLECTION, it.id), it);
+    });
 
-  await batch.commit();
+    const seedDocRef = doc(db, SYSTEM_CONFIG_COLLECTION, 'initial_seed');
+    batch.set(seedDocRef, {
+      seeded: true,
+      seededAt: new Date().toISOString(),
+      app: 'Inventaris Dapur MBG',
+    });
+
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'resetAllFirestoreData');
+  }
 }
+

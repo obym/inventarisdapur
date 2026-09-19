@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChefHat, Plus, Building2, Download, RotateCcw, Cloud, CloudCheck, RefreshCw } from 'lucide-react';
+import { ChefHat, Plus, Building2, Download, RotateCcw, Cloud, CloudCheck, CloudOff, RefreshCw } from 'lucide-react';
 
 interface HeaderProps {
   onOpenAddItem: () => void;
@@ -8,7 +8,8 @@ interface HeaderProps {
   onResetData: () => void;
   kitchenCount: number;
   itemCount: number;
-  isFirebaseSyncing?: boolean;
+  firebaseStatus?: 'connected' | 'syncing' | 'error';
+  onReconnectFirebase?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,7 +19,8 @@ export const Header: React.FC<HeaderProps> = ({
   onResetData,
   kitchenCount,
   itemCount,
-  isFirebaseSyncing = false,
+  firebaseStatus = 'connected',
+  onReconnectFirebase,
 }) => {
   return (
     <header className="bg-[#011E4D] text-white border-b border-[#011E4D]/40 shadow-md sticky top-0 z-30">
@@ -37,10 +39,38 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/15 text-[#B4E0E8] border border-[#B4E0E8]/40">
                   Makan Bergizi Gratis
                 </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {isFirebaseSyncing ? 'Sinkronisasi...' : 'Firebase Terhubung'}
-                </span>
+                {firebaseStatus === 'connected' && (
+                  <span
+                    id="firebase-status-badge"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-400/30"
+                    title="Terkoneksi langsung dengan database Firebase Cloud Firestore"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <CloudCheck className="w-3.5 h-3.5 text-emerald-300" />
+                    <span>Firebase Terhubung</span>
+                  </span>
+                )}
+                {firebaseStatus === 'syncing' && (
+                  <span
+                    id="firebase-status-badge"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-400/30"
+                    title="Sedang menyinkronkan data dengan Firebase..."
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                    <span>Sinkronisasi...</span>
+                  </span>
+                )}
+                {firebaseStatus === 'error' && (
+                  <button
+                    id="firebase-reconnect-btn"
+                    onClick={onReconnectFirebase}
+                    title="Koneksi database terputus. Klik untuk menyambungkan ulang"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/20 text-rose-300 border border-rose-400/30 hover:bg-rose-500/30 transition cursor-pointer"
+                  >
+                    <CloudOff className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Offline / Putus (Klik Coba Lagi)</span>
+                  </button>
+                )}
               </div>
               <p className="text-xs text-white/70 mt-0.5">
                 Monitoring Aset, Lokasi Spesifik, Nilai Perolehan & Kondisi ({kitchenCount} Dapur • {itemCount} Aset)

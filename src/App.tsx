@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Header } from './components/Header';
 import { StatsCards } from './components/StatsCards';
 import { KitchenSelector } from './components/KitchenSelector';
@@ -13,6 +14,7 @@ import { TransferItemModal } from './components/TransferItemModal';
 import { PrintAssetTagModal } from './components/PrintAssetTagModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { INITIAL_KITCHENS, INITIAL_ITEMS } from './data/initialData';
+import { testFirestoreConnection } from './lib/firebase';
 import {
   seedInitialFirestoreData,
   subscribeToKitchens,
@@ -59,7 +61,7 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEYS.ITEMS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.error('Error loading items from storage:', e);
@@ -69,43 +71,89 @@ export default function App() {
 
   // Active Kitchen Selector
   const [selectedKitchenId, setSelectedKitchenId] = useState<string>('all');
-  const [isFirebaseSyncing, setIsFirebaseSyncing] = useState<boolean>(false);
+  const [firebaseStatus, setFirebaseStatus] = useState<'connected' | 'syncing' | 'error'>('syncing');
+
+  // Toast Notification State
+  const [toast, setToast] = useState<{
+    id: number;
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
+
+  const showToast = useCallback((type: 'success' | 'error' | 'info', message: string) => {
+    const id = Date.now();
+    setToast({ id, type, message });
+    setTimeout(() => {
+      setToast((curr) => (curr?.id === id ? null : curr));
+    }, 4000);
+  }, []);
+
+  // Connect and verify Firestore
+  const verifyAndConnectFirebase = useCallback(async () => {
+    setFirebaseStatus('syncing');
+    try {
+      const isConnected = await testFirestoreConnection();
+      if (!isConnected) {
+        setFirebaseStatus('error');
+        showToast('error', 'Koneksi ke Firebase Cloud Firestore gagal. Periksa koneksi internet.');
+        return;
+      }
+      await seedInitialFirestoreData();
+      setFirebaseStatus('connected');
+    } catch (e) {
+      console.error('Firebase initialization error:', e);
+      setFirebaseStatus('error');
+      showToast('error', 'Terjadi kendala saat menyinkronkan dengan database Firebase.');
+    }
+  }, [showToast]);
 
   // Initialize and subscribe to Firestore realtime updates
   useEffect(() => {
     let unsubscribeKitchens: (() => void) | undefined;
     let unsubscribeItems: (() => void) | undefined;
+    let isMounted = true;
 
     async function initFirestore() {
-      setIsFirebaseSyncing(true);
-      try {
-        await seedInitialFirestoreData();
-      } catch (e) {
-        console.error('Seeding error:', e);
-      } finally {
-        setIsFirebaseSyncing(false);
-      }
+      await verifyAndConnectFirebase();
 
-      unsubscribeKitchens = subscribeToKitchens((remoteKitchens) => {
-        if (remoteKitchens && remoteKitchens.length > 0) {
-          setKitchens(remoteKitchens);
+      unsubscribeKitchens = subscribeToKitchens(
+        (remoteKitchens) => {
+          if (!isMounted) return;
+          if (remoteKitchens && remoteKitchens.length > 0) {
+            setKitchens(remoteKitchens);
+            setFirebaseStatus('connected');
+          }
+        },
+        (err) => {
+          console.error('Kitchens subscription error:', err);
+          if (isMounted) setFirebaseStatus('error');
         }
-      });
+      );
 
-      unsubscribeItems = subscribeToItems((remoteItems) => {
-        if (remoteItems && remoteItems.length > 0) {
-          setItems(remoteItems);
+      unsubscribeItems = subscribeToItems(
+        (remoteItems) => {
+          if (!isMounted) return;
+          if (remoteItems) {
+            setItems(remoteItems);
+            setFirebaseStatus('connected');
+          }
+        },
+        (err) => {
+          console.error('Items subscription error:', err);
+          if (isMounted) setFirebaseStatus('error');
         }
-      });
+      );
     }
 
     initFirestore();
 
     return () => {
+      isMounted = false;
       if (unsubscribeKitchens) unsubscribeKitchens();
       if (unsubscribeItems) unsubscribeItems();
     };
-  }, []);
+  }, [verifyAndConnectFirebase]);
+
 
   // View Mode
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -257,18 +305,18 @@ export default function App() {
         id: itemData.id,
       } as InventoryItem;
 
-      setItems((prev) =>
-        prev.map((it) => (it.id === itemData.id ? updatedItem : it))
-      );
-      if (detailItem && detailItem.id === itemData.id) {
-        setDetailItem(updatedItem);
-      }
-
-      // Firestore persist
       try {
         await saveItemToFirestore(updatedItem);
+        setItems((prev) =>
+          prev.map((it) => (it.id === itemData.id ? updatedItem : it))
+        );
+        if (detailItem && detailItem.id === itemData.id) {
+          setDetailItem(updatedItem);
+        }
+        showToast('success', `Perubahan aset "${updatedItem.name}" berhasil disimpan ke Firebase.`);
       } catch (err) {
         console.error('Failed to save item to Firestore:', err);
+        showToast('error', 'Gagal menyimpan pembaruan aset ke database Firebase.');
       }
     } else {
       // Add new
@@ -287,13 +335,14 @@ export default function App() {
           },
         ],
       };
-      setItems((prev) => [newItem, ...prev]);
 
-      // Firestore persist
       try {
         await saveItemToFirestore(newItem);
+        setItems((prev) => [newItem, ...prev]);
+        showToast('success', `Aset baru "${newItem.name}" berhasil ditambahkan ke Firebase.`);
       } catch (err) {
         console.error('Failed to save new item to Firestore:', err);
+        showToast('error', 'Gagal menyimpan aset baru ke database Firebase.');
       }
     }
   };
@@ -312,8 +361,24 @@ export default function App() {
 
   const handleExecuteDelete = async (itemId: string) => {
     setIsDeletingItem(true);
+    const itemToDelete = items.find((i) => i.id === itemId);
+    const itemName = itemToDelete?.name || 'Aset';
+
     try {
-      setItems((prev) => prev.filter((i) => i.id !== itemId));
+      // Delete directly from Firestore
+      await deleteItemFromFirestore(itemId);
+
+      // Once deleted from Firebase, update local state
+      setItems((prev) => {
+        const next = prev.filter((i) => i.id !== itemId);
+        try {
+          localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(next));
+        } catch (e) {
+          console.error(e);
+        }
+        return next;
+      });
+
       if (detailItem?.id === itemId) setDetailItem(null);
       if (editingItem?.id === itemId) {
         setEditingItem(null);
@@ -321,10 +386,10 @@ export default function App() {
       }
       setDeleteTargetItem(null);
 
-      // Firestore delete
-      await deleteItemFromFirestore(itemId);
+      showToast('success', `"${itemName}" telah berhasil dihapus permanen dari Firebase.`);
     } catch (err) {
       console.error('Failed to delete item from Firestore:', err);
+      showToast('error', `Gagal menghapus "${itemName}" dari database Firebase. Periksa koneksi internet Anda.`);
     } finally {
       setIsDeletingItem(false);
     }
@@ -357,16 +422,16 @@ export default function App() {
       conditionHistory: updatedHistory,
     };
 
-    setItems((prev) => prev.map((item) => (item.id === itemId ? updatedItem : item)));
-    if (detailItem?.id === itemId) {
-      setDetailItem(updatedItem);
-    }
-
-    // Firestore update
     try {
       await saveItemToFirestore(updatedItem);
+      setItems((prev) => prev.map((item) => (item.id === itemId ? updatedItem : item)));
+      if (detailItem?.id === itemId) {
+        setDetailItem(updatedItem);
+      }
+      showToast('success', `Status kondisi "${it.name}" berhasil diperbarui di Firebase.`);
     } catch (err) {
       console.error('Failed to update condition in Firestore:', err);
+      showToast('error', 'Gagal memperbarui status kondisi di Firebase.');
     }
   };
 
@@ -400,16 +465,16 @@ export default function App() {
       mutationHistory: updatedHistory,
     };
 
-    setItems((prev) => prev.map((item) => (item.id === itemId ? updatedItem : item)));
-    if (detailItem?.id === itemId) {
-      setDetailItem(updatedItem);
-    }
-
-    // Firestore update
     try {
       await saveItemToFirestore(updatedItem);
+      setItems((prev) => prev.map((item) => (item.id === itemId ? updatedItem : item)));
+      if (detailItem?.id === itemId) {
+        setDetailItem(updatedItem);
+      }
+      showToast('success', `Mutasi fisik aset berhasil dicatat di Firebase.`);
     } catch (err) {
       console.error('Failed to transfer item in Firestore:', err);
+      showToast('error', 'Gagal menyimpan mutasi aset di Firebase.');
     }
   };
 
@@ -420,36 +485,45 @@ export default function App() {
       id: `k-${Date.now()}`,
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setKitchens((prev) => [...prev, newKitchen]);
-    setSelectedKitchenId(newKitchen.id);
 
     try {
       await saveKitchenToFirestore(newKitchen);
+      setKitchens((prev) => [...prev, newKitchen]);
+      setSelectedKitchenId(newKitchen.id);
+      showToast('success', `Dapur "${newKitchen.name}" berhasil ditambahkan ke Firebase.`);
     } catch (err) {
       console.error('Failed to save kitchen to Firestore:', err);
+      showToast('error', 'Gagal menyimpan dapur baru ke Firebase.');
     }
   };
 
   // Handler: Update Kitchen
   const handleUpdateKitchen = async (updatedK: Kitchen) => {
-    setKitchens((prev) => prev.map((k) => (k.id === updatedK.id ? updatedK : k)));
     try {
       await saveKitchenToFirestore(updatedK);
+      setKitchens((prev) => prev.map((k) => (k.id === updatedK.id ? updatedK : k)));
+      showToast('success', `Informasi dapur "${updatedK.name}" berhasil diperbarui di Firebase.`);
     } catch (err) {
       console.error('Failed to update kitchen in Firestore:', err);
+      showToast('error', 'Gagal memperbarui data dapur di Firebase.');
     }
   };
 
   // Handler: Delete Kitchen
   const handleDeleteKitchen = async (kId: string) => {
-    setKitchens((prev) => prev.filter((k) => k.id !== kId));
-    if (selectedKitchenId === kId) {
-      setSelectedKitchenId('all');
-    }
+    const kitchenToDelete = kitchens.find((k) => k.id === kId);
+    const kName = kitchenToDelete?.name || 'Dapur';
+
     try {
       await deleteKitchenFromFirestore(kId);
+      setKitchens((prev) => prev.filter((k) => k.id !== kId));
+      if (selectedKitchenId === kId) {
+        setSelectedKitchenId('all');
+      }
+      showToast('success', `Dapur "${kName}" berhasil dihapus dari Firebase.`);
     } catch (err) {
       console.error('Failed to delete kitchen from Firestore:', err);
+      showToast('error', `Gagal menghapus dapur "${kName}" dari Firebase.`);
     }
   };
 
@@ -460,16 +534,17 @@ export default function App() {
         'Reset semua data inventaris dan daftar dapur ke data awal demo program MBG?'
       )
     ) {
-      setKitchens(INITIAL_KITCHENS);
-      setItems(INITIAL_ITEMS);
-      setSelectedKitchenId('all');
-      localStorage.removeItem(STORAGE_KEYS.KITCHENS);
-      localStorage.removeItem(STORAGE_KEYS.ITEMS);
-
       try {
         await resetAllFirestoreData();
+        setKitchens(INITIAL_KITCHENS);
+        setItems(INITIAL_ITEMS);
+        setSelectedKitchenId('all');
+        localStorage.removeItem(STORAGE_KEYS.KITCHENS);
+        localStorage.removeItem(STORAGE_KEYS.ITEMS);
+        showToast('info', 'Data inventaris berhasil direset ke data bawaan demo di Firebase.');
       } catch (err) {
         console.error('Failed to reset Firestore data:', err);
+        showToast('error', 'Gagal mereset database Firebase.');
       }
     }
   };
@@ -544,7 +619,8 @@ export default function App() {
         onResetData={handleResetData}
         kitchenCount={kitchens.length}
         itemCount={items.length}
-        isFirebaseSyncing={isFirebaseSyncing}
+        firebaseStatus={firebaseStatus}
+        onReconnectFirebase={verifyAndConnectFirebase}
       />
 
       {/* Main Container */}
@@ -727,6 +803,32 @@ export default function App() {
         onConfirm={handleExecuteDelete}
         isDeleting={isDeletingItem}
       />
+
+      {/* Global Status Toast Notification */}
+      {toast && (
+        <div
+          id="global-toast-notification"
+          className={`fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium border transition-all duration-300 max-w-md ${
+            toast.type === 'success'
+              ? 'bg-slate-900 text-emerald-300 border-emerald-500/40'
+              : toast.type === 'error'
+              ? 'bg-slate-900 text-rose-300 border-rose-500/40'
+              : 'bg-slate-900 text-sky-300 border-sky-500/40'
+          }`}
+        >
+          {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
+          {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />}
+          {toast.type === 'info' && <RefreshCw className="w-5 h-5 text-sky-400 shrink-0" />}
+          <span className="flex-1 leading-snug">{toast.message}</span>
+          <button
+            id="btn-close-toast"
+            onClick={() => setToast(null)}
+            className="text-white/50 hover:text-white text-xs px-1.5 py-0.5 rounded cursor-pointer shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }
